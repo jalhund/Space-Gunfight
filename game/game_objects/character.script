@@ -1,12 +1,14 @@
-local character_input = require "game.game_objects.character_input"
-
 local min_angle = -90
 local max_angle = 90
 
 go.property("is_left", true)
 
+local function is_left()
+	return go.get("#character_script", "is_left")
+end
+
 local function weapon_id()
-	if go.get("#character_script", "is_left") then
+	if is_left() then
 		return "/left_player_weapon"
 	else
 		return "/right_player_weapon"
@@ -51,6 +53,12 @@ function init(self)
 	self.angle_step = 0
 
 	self.bullets = {}
+
+	if not is_left() then
+		sprite.play_flipbook("#character", "character_right")
+		sprite.play_flipbook(weapon_id().."#weapon", "weapon_right")
+		go.set_position(vmath.vector3(-15, 19, 0), weapon_id())
+	end
 end
 
 function final(self)
@@ -63,6 +71,7 @@ function update(self, dt)
 	update_bullets(self, dt)
 	local rotation = go.get_rotation()
 	local world_position = go.get_world_position()
+	print(rotation, self.rotation_direction)
 	msg.post("#collisionobject", "apply_force", {
 		force = vmath.rotate(rotation, self.rotation_direction),
 		 position = world_position + vmath.rotate(rotation, vmath.vector3(-10, 10, 0))
@@ -93,18 +102,30 @@ function on_message(self, message_id, message, sender)
 	elseif message_id == hash("up") then
 		if message.pressed or message.repeated then
 			self.angle_step = weapon_rotation_speed
+			if not message.is_left then
+				self.angle_step = -self.angle_step
+			end
 		end
 	elseif message_id == hash("down") then
 		if message.pressed or message.repeated then
 			self.angle_step = -weapon_rotation_speed
+			if not message.is_left then
+				self.angle_step = -self.angle_step
+			end
 		end
 	elseif message_id == hash("attack") then
 		if message.pressed then
 			local bullet_factory = "/factories#bullet_factory"
-			local r_z = vmath.quat_rotation_z(math.rad(self.cur_angle))
+			local angle = self.cur_angle
+
+			local rad = math.rad(self.cur_angle)
+			if not message.is_left then
+				rad = rad + math.pi
+			end
+			local r_z = vmath.quat_rotation_z(rad)
 			local r = r_z * go.get_rotation()
 			-- print("r_z, r", self.cur_angle, math.rad(self.cur_angle), r_z, r)
-			local p = go.get_world_position(weapon_id(message.is_left)) + vmath.rotate(r, vmath.vector3(120, 0, 0))
+			local p = go.get_world_position(weapon_id(message.is_left)) + vmath.rotate(r, vmath.vector3(100, 0, 0))
 		
 		
 			local bullet = factory.create(bullet_factory, p)
