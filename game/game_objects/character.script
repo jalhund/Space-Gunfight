@@ -1,55 +1,56 @@
-local cur_angle = 0
+local character_input = require "game.game_objects.character_input"
+
 local min_angle = -90
 local max_angle = 90
-local trend = "down" --up or down
-local angle_step = 0
 
 go.property("is_left", true)
 
-local function update_angle(dt)
-	if math.abs(angle_step) >= 1 then
-		cur_angle = cur_angle + angle_step * dt
-		if cur_angle >= max_angle then
-			cur_angle = max_angle
+local function weapon_id()
+	if go.get("#character_script", "is_left") then
+		return "/left_player_weapon"
+	else
+		return "/right_player_weapon"
+	end
+end
+
+local function update_angle(self, dt)
+	if math.abs(self.angle_step) >= 1 then
+		self.cur_angle = self.cur_angle + self.angle_step * dt * 2
+		if self.cur_angle >= max_angle then
+			self.cur_angle = max_angle
 		end
-		if cur_angle <= min_angle then
-			cur_angle = min_angle
+		if self.cur_angle <= min_angle then
+			self.cur_angle = min_angle
 		end
-		go.set("/left_player_weapon", "euler.z", cur_angle)
-		angle_step = angle_step - angle_step * dt
+		go.set(weapon_id(), "euler.z", self.cur_angle)
+		self.angle_step = self.angle_step - self.angle_step * dt * 2
 	end
 
 end
 
 local recoil = 10
-local bullet_range = 700
-local bullet_life_time = 0.5
+local bullet_range = 200
+local bullet_life_time = 2
 
-local function create_bullet()
-	local bullet_factory = "/factories#bullet_factory"
-	local angle = cur_angle
-	local r_z = vmath.quat_rotation_z(math.rad(angle))
-	local r = r_z * go.get_rotation()
-	local p = go.get_world_position("left_player_weapon") + vmath.rotate(r, vmath.vector3(120, 0, 0))
 
-	print("Create bullet:", math.rad(angle), go.get_rotation().z)
-
-	local bullet = factory.create(bullet_factory, p)
-
-	go.set_rotation(r, msg.url(bullet))
-
-	msg.post(msg.url(nil, bullet, "collision"), "apply_force", {
-		force = vmath.vector3(10000, 0, 0),
-		position = go.get_world_position(bullet) - vmath.vector3(-35, 0, 0)}
-	)
-	-- timer.delay(bullet_life_time, false, function()
-	--  	go.delete(bullet)
-	-- end)
+local function update_bullets(self, dt)
+	for i = #self.bullets, 1, -1 do
+		go.set_position(go.get_position(self.bullets[i].bullet) + self.bullets[i].direction * dt, self.bullets[i].bullet)
+		self.bullets[i].dt_ellapsed = self.bullets[i].dt_ellapsed + dt
+		if self.bullets[i].dt_ellapsed > bullet_life_time then
+			go.delete(self.bullets[i].bullet)
+			table.remove(self.bullets, i)
+		end
+	end
 end
 
 function init(self)
-	msg.post(".", "acquire_input_focus")
 	self.rotation_direction = vmath.vector3(0, 0, 0)
+
+	self.cur_angle = 0
+	self.angle_step = 0
+
+	self.bullets = {}
 end
 
 function final(self)
@@ -58,7 +59,8 @@ function final(self)
 end
 
 function update(self, dt)
-	update_angle(dt)
+	update_angle(self, dt)
+	update_bullets(self, dt)
 	local rotation = go.get_rotation()
 	local world_position = go.get_world_position()
 	msg.post("#collisionobject", "apply_force", {
@@ -69,44 +71,57 @@ function update(self, dt)
 		force = vmath.rotate(rotation, -self.rotation_direction),
 		 position = world_position + vmath.rotate(rotation, vmath.vector3(10, -10, 0))
 	})
-	msg.post("@render:", "draw_text", { text = "Rotate using left/right arrow keys", position = vmath.vector3(10, 100, 0) } )
 end
+
+local rotation_speed = 50
+local weapon_rotation_speed = 60
 
 function on_message(self, message_id, message, sender)
-end
-
-function on_input(self, action_id, action)
-	if action_id == hash("left") then
-		if action.pressed then
-			self.rotation_direction.x = -100
-		elseif action.released then
+	print("Message catched:", self, message.left, self.angle_step, weapon_id())
+	if message_id == hash("left") then
+		if message.pressed or message.repeated then
+			self.rotation_direction.x = -rotation_speed
+		elseif message.released then
 			self.rotation_direction.x = 0
 		end
-	elseif action_id == hash("right") then
-		if action.pressed then
-			self.rotation_direction.x = 100
-		elseif action.released then
+	elseif message_id == hash("right") then
+		if message.pressed or message.repeated then
+			self.rotation_direction.x = rotation_speed
+		elseif message.released then
 			self.rotation_direction.x = 0
 		end
-	end
-
-	if action_id == hash("up") then
-		if action.pressed or action.repeated then
-			angle_step = 60
+	elseif message_id == hash("up") then
+		if message.pressed or message.repeated then
+			self.angle_step = weapon_rotation_speed
 		end
-	elseif action_id == hash("down") then
-		if action.pressed or action.repeated then
-			angle_step = -60
+	elseif message_id == hash("down") then
+		if message.pressed or message.repeated then
+			self.angle_step = -weapon_rotation_speed
+		end
+	elseif message_id == hash("attack") then
+		if message.pressed then
+			local bullet_factory = "/factories#bullet_factory"
+			local r_z = vmath.quat_rotation_z(math.rad(self.cur_angle))
+			local r = r_z * go.get_rotation()
+			-- print("r_z, r", self.cur_angle, math.rad(self.cur_angle), r_z, r)
+			local p = go.get_world_position(weapon_id(message.is_left)) + vmath.rotate(r, vmath.vector3(120, 0, 0))
+		
+		
+			local bullet = factory.create(bullet_factory, p)
+		
+			go.set_rotation(r, bullet)
+			
+			print("Create bullet:", is_left)
+			table.insert(self.bullets, {
+				direction = vmath.rotate(r, vmath.vector3(bullet_range, 0, 0)),
+				bullet = bullet,
+				dt_ellapsed = 0
+			})
+
+			msg.post("#collisionobject", "apply_force", {
+				force = vmath.rotate(r, vmath.vector3(-400, 0, 0)),
+				position = go.get_world_position() + vmath.rotate(r, vmath.vector3(35, 5, 0))}
+			)
 		end
 	end
-
-	if action_id == hash("touch") and action.released then
-		print("Click!!!")
-		create_bullet()
-	end
-end
-
-function on_reload(self)
-	-- Add reload-handling code here
-	-- Remove this function if not needed
 end

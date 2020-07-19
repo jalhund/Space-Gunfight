@@ -1,28 +1,48 @@
+local character_input = require "game.game_objects.character_input"
+
 function init(self)
+	msg.post(".", "acquire_input_focus")
 	sprite.set_constant("/background#sprite", "tint", vmath.vector4(0.7, 0.7, 0.7, 1))
 end
 
-function final(self)
-	-- Add finalization code here
-	-- Remove this function if not needed
-end
-
-function update(self, dt)
-	-- Add update code here
-	-- Remove this function if not needed
-end
-
-function on_message(self, message_id, message, sender)
-	-- Add message-handling code here
-	-- Remove this function if not needed
-end
+local input_configuration = {
+	left_player = {
+		left = hash("left"),
+		right = hash("right"),
+		up = hash("up"),
+		down = hash("down"),
+		attack = hash("attack")
+	},
+	right_player = {
+		left = hash("left2"),
+		right = hash("right2"),
+		up = hash("up2"),
+		down = hash("down2"),
+		attack = hash("attack2")
+	}
+}
 
 function on_input(self, action_id, action)
-	-- Add input-handling code here
-	-- Remove this function if not needed
-end
-
-function on_reload(self)
-	-- Add reload-handling code here
-	-- Remove this function if not needed
+	if action_id then
+		for k, v in pairs(input_configuration.left_player) do
+			if action_id == v then
+				msg.post("/left_player", k, {
+					pressed = action.pressed,
+					repeated = action.repeated,
+					released = action.released,
+					is_left = true
+				})
+			end
+		end
+		for k, v in pairs(input_configuration.right_player) do
+			if action_id == v then
+				print("send message to right player:", k, v)
+				msg.post("/right_player#character_script", k, {
+					pressed = action.pressed,
+					repeated = action.repeated,
+					released = action.released
+				})
+			end
+		end
+	end
 end

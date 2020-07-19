@@ -14,6 +14,30 @@ key_trigger {
   input: KEY_S
   action: "down"
 }
+key_trigger {
+  input: KEY_KP_1
+  action: "left2"
+}
+key_trigger {
+  input: KEY_KP_3
+  action: "right2"
+}
+key_trigger {
+  input: KEY_KP_5
+  action: "up2"
+}
+key_trigger {
+  input: KEY_KP_2
+  action: "down2"
+}
+key_trigger {
+  input: KEY_SPACE
+  action: "attack"
+}
+key_trigger {
+  input: KEY_KP_0
+  action: "attack2"
+}
 mouse_trigger {
   input: MOUSE_BUTTON_1
   action: "touch"
